@@ -31,9 +31,9 @@
       </div>
       <div class="hdr-sub no-print">
         <nav class="nav-pills" aria-label="Secciones">
-          <button class="pill active" type="button">Inventario</button>
-          <button class="pill" type="button">Vigencia</button>
-          <button class="pill" type="button">Reportes</button>
+          <button class="pill active" type="button" data-view="reportes">Reportes</button>
+          <button class="pill" type="button" data-view="inventario">Inventario</button>
+          <button class="pill" type="button" data-view="vigencia">Vigencia</button>
         </nav>
         <div class="hdr-hint">
           <span class="dot dot-ok"></span> Cuadre OK
@@ -110,40 +110,40 @@
       <table id="tblPostres" aria-describedby="tableHelp">
         <colgroup>
           <col style="width: 220px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 110px;">
-          <col style="width: 140px;">
-          <col style="width: 140px;">
-          <col style="width: 120px;">
-          <col style="width: 160px;">
-          <col style="width: 130px;">
-          <col style="width: 120px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 110px;">
+          <col class="col-inventario" style="width: 140px;">
+          <col class="col-vigencia sep" style="width: 140px;">
+          <col class="col-vigencia" style="width: 120px;">
+          <col class="col-vigencia" style="width: 160px;">
+          <col class="col-vigencia" style="width: 130px;">
+          <col class="col-vigencia" style="width: 120px;">
         </colgroup>
         <thead>
           <tr>
             <th class="sticky">Postre</th>
-            <th title="Producto Mix">PM</th>
-            <th title="Ventas">V</th>
-            <th title="Existencia">E</th>
-            <th>Total A<br><small>PM+V+E</small></th>
-            <th title="Hechos">H</th>
-            <th title="Sobrantes">S</th>
-            <th title="Desechos">D</th>
-            <th>Total B<br><small>(H+S)-D</small></th>
-            <th>Δ Diferencia<br><small>(A-B)</small></th>
-            <th>Estado</th>
-            <th class="sep">Prep. Fecha</th>
-            <th>Prep. Hora</th>
-            <th>Vence</th>
-            <th>Restante</th>
-            <th>Vigencia</th>
+            <th class="col-inventario" title="Producto Mix">PM</th>
+            <th class="col-inventario" title="Ventas">V</th>
+            <th class="col-inventario" title="Existencia">E</th>
+            <th class="col-inventario">Total A<br><small>PM+V+E</small></th>
+            <th class="col-inventario" title="Hechos">H</th>
+            <th class="col-inventario" title="Sobrantes">S</th>
+            <th class="col-inventario" title="Desechos">D</th>
+            <th class="col-inventario">Total B<br><small>(H+S)-D</small></th>
+            <th class="col-inventario">Δ Diferencia<br><small>(A-B)</small></th>
+            <th class="col-inventario">Estado</th>
+            <th class="col-vigencia sep">Prep. Fecha</th>
+            <th class="col-vigencia">Prep. Hora</th>
+            <th class="col-vigencia">Vence</th>
+            <th class="col-vigencia">Restante</th>
+            <th class="col-vigencia">Vigencia</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -160,7 +160,9 @@
 
   <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js"></script>
+  <script src="config.js" defer></script>
+  <script src="ui.js" defer></script>
+  <script src="app.js" defer></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
