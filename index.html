@@ -3,172 +3,84 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Verificador de Postres · Vigencia</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#38bdf8">
-  <link rel="icon" href="icon-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>GAD — Escuela de Adiestramiento</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <div class="app">
-    <header class="app-header header-v2">
-      <div class="hdr-top">
-        <div class="brand">
-          <div class="logo" aria-hidden="true">🍰</div>
-          <div class="brand-txt">
-            <h1>Verificador de Postres</h1>
-            <span class="tagline">Control de cuadre y vigencia en tiempo real</span>
-          </div>
-        </div>
-        <div class="hdr-actions no-print">
-          <button id="btnExportCSV" class="icon-btn" title="Exportar CSV" aria-label="Exportar CSV">⭳</button>
-          <button id="btnSaveLocal" class="icon-btn" title="Guardar" aria-label="Guardar">💾</button>
-          <button id="btnLoadLocal" class="icon-btn" title="Cargar" aria-label="Cargar">⭮</button>
-          <button id="btnNotify" class="icon-btn bell" title="Alertas de vencimiento" aria-label="Alertas">🔔</button>
-          <button id="btnClear" class="icon-btn ghost" title="Limpiar" aria-label="Limpiar">🧹</button>
-        </div>
+<body data-view="login">
+
+  <!-- ══════════════════════════════════════════
+       VIEW: LOGIN
+  ══════════════════════════════════════════ -->
+  <div id="view-login" class="view-panel">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="brand-icon">🎓</span>
+        <h1>GAD Adiestramiento</h1>
+        <p>Sistema de Gestión de Equipos</p>
       </div>
-      <div class="hdr-sub no-print">
-        <nav class="nav-pills" aria-label="Secciones">
-          <button class="pill active" type="button" data-view="reportes">Reportes</button>
-          <button class="pill" type="button" data-view="inventario">Inventario</button>
-          <button class="pill" type="button" data-view="vigencia">Vigencia</button>
-        </nav>
-        <div class="hdr-hint">
-          <span class="dot dot-ok"></span> Cuadre OK
-          <span class="dot dot-warn"></span> Validar conteo
-          <span class="dot dot-bad"></span> Descuadre / Expirado
+
+      <form id="form-login">
+        <div class="form-group">
+          <label for="input-email">Correo electrónico</label>
+          <input id="input-email" type="email" placeholder="tu@correo.com" required autocomplete="email" />
         </div>
+        <div class="form-group">
+          <label for="input-password">Contraseña</label>
+          <input id="input-password" type="password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <p id="login-error" class="error-msg"></p>
+        <button id="btn-login" type="submit" class="btn btn-primary btn-full">
+          Iniciar sesión
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       VIEW: DASHBOARD (all authenticated views)
+  ══════════════════════════════════════════ -->
+  <div id="view-dashboard" class="view-panel">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-icon">🎓</span>
+        <span>GAD Adiestramiento</span>
+      </div>
+
+      <nav class="nav-pills" id="main-nav">
+        <!-- Injected by ui.js based on role -->
+      </nav>
+
+      <div class="header-right">
+        <div class="user-info" id="user-info">
+          <!-- Injected by ui.js -->
+        </div>
+        <button id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
     </header>
 
-    <section class="kpis no-print">
-      <div class="kpi"><h3>Total A</h3><div id="kpiA">0</div></div>
-      <div class="kpi"><h3>Total B</h3><div id="kpiB">0</div></div>
-      <div class="kpi"><h3>Δ Global</h3><div id="kpiDelta">0</div></div>
-      <div class="kpi"><h3>Vencidos</h3><div id="kpiExp">0</div></div>
-    </section>
-
-    <section class="meta-grid">
-      <label>Nombre del gerencial
-        <input id="gerencial" type="text" placeholder="Ej. Héctor Irizarry" autocomplete="name">
-      </label>
-      <label>Fecha de la revisión
-        <input id="fecha" type="date">
-      </label>
-      <label>Hora de la revisión
-        <input id="hora" type="time">
-      </label>
-    </section>
-
-    <section class="legend">
-      <details open>
-        <summary>Leyenda</summary>
-        <div class="legend-grid">
-          <div>
-            <b>Campos</b>
-            <ul>
-              <li><b>PM</b>: Producto Mix</li>
-              <li><b>V</b>: Ventas</li>
-              <li><b>E</b>: Existencia</li>
-              <li><b>H</b>: Hechos</li>
-              <li><b>S</b>: Sobrantes</li>
-              <li><b>D</b>: Desechos</li>
-            </ul>
-          </div>
-          <div>
-            <b>Estados (cuadre)</b>
-            <ul>
-              <li><span class="chip ok">Cuadre OK</span> Δ = 0</li>
-              <li><span class="chip warn">Validar conteo</span> |Δ| ≤ 2</li>
-              <li><span class="chip bad">Descuadre</span> |Δ| ≥ 3</li>
-            </ul>
-          </div>
-          <div>
-            <b>Vigencia</b>
-            <ul>
-              <li><span class="chip ok">Vigente</span> &gt; 4h</li>
-              <li><span class="chip warn">Por expirar</span> ≤ 4h</li>
-              <li><span class="chip bad">Expirado</span> 0h o menos</li>
-            </ul>
-          </div>
-          <div>
-            <b>Vida útil</b>
-            <ul>
-              <li>Quesitos, Muffins (Maíz, Zanahoria, Red Velvet), ChocoChip: <b>24h</b></li>
-              <li>Cinnamon Roll: <b>4 días (96h)</b></li>
-              <li>Lf Coffee Cake: <b>2 días (48h)</b></li>
-              <li>Otros (Meso/Catering): <b>24h</b></li>
-            </ul>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <section class="table-wrap">
-      <table id="tblPostres" aria-describedby="tableHelp">
-        <colgroup>
-          <col style="width: 220px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 110px;">
-          <col class="col-inventario" style="width: 140px;">
-          <col class="col-vigencia sep" style="width: 140px;">
-          <col class="col-vigencia" style="width: 120px;">
-          <col class="col-vigencia" style="width: 160px;">
-          <col class="col-vigencia" style="width: 130px;">
-          <col class="col-vigencia" style="width: 120px;">
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="sticky">Postre</th>
-            <th class="col-inventario" title="Producto Mix">PM</th>
-            <th class="col-inventario" title="Ventas">V</th>
-            <th class="col-inventario" title="Existencia">E</th>
-            <th class="col-inventario">Total A<br><small>PM+V+E</small></th>
-            <th class="col-inventario" title="Hechos">H</th>
-            <th class="col-inventario" title="Sobrantes">S</th>
-            <th class="col-inventario" title="Desechos">D</th>
-            <th class="col-inventario">Total B<br><small>(H+S)-D</small></th>
-            <th class="col-inventario">Δ Diferencia<br><small>(A-B)</small></th>
-            <th class="col-inventario">Estado</th>
-            <th class="col-vigencia sep">Prep. Fecha</th>
-            <th class="col-vigencia">Prep. Hora</th>
-            <th class="col-vigencia">Vence</th>
-            <th class="col-vigencia">Restante</th>
-            <th class="col-vigencia">Vigencia</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p id="tableHelp" class="muted help">
-        Verde = consistente/vigente · Ámbar = diferencia pequeña o &lt; 4h · Rojo = inconsistente/expirado.
-      </p>
-    </section>
-
-    <footer class="app-footer">
-      <small>Funciona offline y exporta CSV. Imprime desde el navegador (Ctrl/Cmd + P).</small>
-    </footer>
+    <!-- Main scrollable area -->
+    <main id="main-content">
+      <!-- Injected by app.js / ui.js on navigation -->
+    </main>
   </div>
 
-  <div id="toasts" aria-live="polite" aria-atomic="true"></div>
+  <!-- ══════════════════════════════════════════
+       LOADER OVERLAY
+  ══════════════════════════════════════════ -->
+  <div id="loader-overlay">
+    <div class="spinner"></div>
+  </div>
 
-  <script src="config.js" defer></script>
-  <script src="ui.js" defer></script>
-  <script src="app.js" defer></script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js").catch(console.error);
-      });
-    }
-  </script>
+  <!-- ══════════════════════════════════════════
+       TOAST CONTAINER
+  ══════════════════════════════════════════ -->
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- ══════════════════════════════════════════
+       SCRIPTS (ES Modules)
+  ══════════════════════════════════════════ -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>
