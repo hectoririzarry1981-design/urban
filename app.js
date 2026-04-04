@@ -1,289 +1,284 @@
-/* Verificador de Postres – Totales, KPIs, Vigencia y Alertas */
-const APP_VERSION = 1;
-const STORAGE_KEY = "postres_vigencia_v7";
+// ============================================================
+// app.js — Main orchestrator / router
+// ============================================================
 
-const asInt = v => { const n = parseInt(v ?? 0, 10); return isNaN(n) ? 0 : n; };
+import { initAuth, login, logout, createUser, currentUser as getUser } from "./auth.js";
+import {
+  listUsers,
+  listGerentes,
+  listRecordsForDate,
+  listRecentRecords,
+  getRecord,
+  saveRecord,
+  deleteUserProfile,
+  todayStr,
+} from "./db.js";
+import {
+  showLoader,
+  hideLoader,
+  toast,
+  renderHeader,
+  renderTeamDashboard,
+  renderMyDashboard,
+  renderRecordForm,
+  renderUsersPanel,
+} from "./ui.js";
 
-const App = {
-  init() {
-    document.addEventListener("DOMContentLoaded", () => {
-      this.setupInitialState();
-      this.setupEventListeners();
-      UI.updateView('reportes'); 
-    });
-    window.addEventListener("resize", UI.setStickyOffsets);
-  },
-
-  setupInitialState() {
-    const initialData = POSTRES.map(n => ({ nombre: n }));
-    const handleInputChange = (tr) => {
-      this.calcRow(tr);
-      this.refreshKPIs();
-    };
-    UI.renderTable(initialData, handleInputChange);
-    this.refreshKPIs();
-    const now = new Date();
-    $("#fecha").value = now.toISOString().slice(0, 10);
-    $("#hora").value = now.toTimeString().slice(0, 5);
-    UI.setStickyOffsets();
-  },
-
-  setupEventListeners() {
-    $("#btnExportCSV").addEventListener("click", () => this.exportCSV());
-    $("#btnSaveLocal").addEventListener("click", () => this.saveLocal());
-    $("#btnLoadLocal").addEventListener("click", () => this.loadLocal());
-    $("#btnClear").addEventListener("click", () => this.clearAll());
-    
-    $$(".nav-pills .pill").forEach(pill => {
-      pill.addEventListener("click", (e) => {
-        const view = e.target.dataset.view;
-        UI.updateView(view);
-      });
-    });
-
-    this.wireNotifications();
-  },
-
-  parsePrepDateTime(row) {
-    const f = $(`input[name="prepFecha"]`, row).value;
-    const h = $(`input[name="prepHora"]`, row).value;
-    if (!f || !h) return null;
-    const [yy, mm, dd] = f.split("-").map(Number);
-    const [HH, MM] = h.split(":").map(Number);
-    return new Date(yy, mm - 1, dd, HH, MM, 0, 0);
-  },
-
-  calcRow(tr) {
-    const get = (n) => asInt($(`input[name="${n}"]`, tr).value);
-    const A = get("PM") + get("V") + get("E");
-    const B = get("H") + get("S") - get("D");
-    const d = A - B;
-    const abs = Math.abs(d);
-
-    let cuadre;
-    if (abs === 0) {
-      cuadre = { label: "Cuadre OK", status: "ok" };
-    } else if (abs <= 2) {
-      cuadre = { label: "Validar conteo", status: "warn" };
-    } else {
-      cuadre = { label: "Descuadre", status: "bad" };
-    }
-
-    const nombre = tr.querySelector("td").textContent.trim();
-    const prep = this.parsePrepDateTime(tr);
-    const vH = VIDA_HORAS[nombre] ?? 24;
-
-    let vencimiento;
-    if (prep) {
-      const vence = new Date(prep.getTime() + vH * 3600 * 1000);
-      const ms = vence - Date.now();
-      let vigencia;
-      if (ms <= 0) {
-        vigencia = { label: "Expirado", status: "vig-bad" };
-      } else if (ms <= 4 * 3600 * 1000) {
-        vigencia = { label: "Por expirar", status: "vig-warn" };
-      } else {
-        vigencia = { label: "Vigente", status: "vig-ok" };
-      }
-      vencimiento = { vence, ms, vigencia };
-    }
-
-    const calcs = { A, B, d, cuadre, vencimiento };
-    UI.updateRowUI(tr, calcs);
-    return calcs;
-  },
-
-  collectData() {
-    const out = [];
-    $$("#tblPostres tbody tr").forEach((tr) => {
-      const nombre = tr.querySelector("td").textContent.trim();
-      const get = (n) => asInt($(`input[name="${n}"]`, tr).value);
-      out.push({
-        nombre,
-        PM: get("PM"),
-        V: get("V"),
-        E: get("E"),
-        H: get("H"),
-        S: get("S"),
-        D: get("D"),
-        totalA: Number($(".totA", tr).textContent.replace(/\D/g, "")) || 0,
-        totalB: Number($(".totB", tr).textContent.replace(/\D/g, "")) || 0,
-        delta: Number($(".delta", tr).textContent.replace(/[^\-0-9]/g, "")) || 0,
-        estado: $(".status", tr).textContent,
-        prepFecha: $(`input[name="prepFecha"]`, tr).value || "",
-        prepHora: $(`input[name="prepHora"]`, tr).value || "",
-        vence: $(".vence", tr).textContent,
-        restante: $(".resta", tr).textContent,
-        vigencia: $(".vig-status", tr).textContent,
-      });
-    });
-    return out;
-  },
-
-  refreshKPIs() {
-    const rows = this.collectData();
-    const A = rows.reduce((s, r) => s + (r.totalA || 0), 0);
-    const B = rows.reduce((s, r) => s + (r.totalB || 0), 0);
-    const D = A - B;
-    const X = rows.filter((r) =>
-      String(r.vigencia).toLowerCase().includes("expirado")
-    ).length;
-    UI.updateKPIsUI({ A, B, D, X });
-  },
-
-  exportCSV() {
-    const meta = {
-      gerencial: $("#gerencial").value || "",
-      fecha: $("#fecha").value || "",
-      hora: $("#hora").value || "",
-    };
-    const rows = this.collectData();
-    const H = [
-      "Postre", "PM", "V", "E", "Total A", "H", "S", "D", "Total B", 
-      "Diferencia", "Estado", "Prep Fecha", "Prep Hora", "Vence", 
-      "Restante", "Vigencia", "Gerencial", "Fecha Rev", "Hora Rev",
-    ];
-    const lines = [H.join(",")];
-    rows.forEach((r) =>
-      lines.push(
-        [
-          `"${r.nombre}"`,
-          r.PM, r.V, r.E, r.totalA,
-          r.H, r.S, r.D, r.totalB,
-          r.delta, r.estado,
-          `"${r.prepFecha}"`, `"${r.prepHora}"`, `"${r.vence}"`, 
-          `"${r.restante}"`, `"${r.vigencia}"`, `"${meta.gerencial}"`, 
-          `"${meta.fecha}"`, `"${meta.hora}"`,
-        ].join(",")
-      )
-    );
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    a.href = url;
-    a.download = `verificador_postres_${meta.fecha || new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-    UI.toast("CSV exportado.", "ok");
-  },
-
-  saveLocal() {
-    const data = {
-      version: APP_VERSION,
-      meta: {
-        gerencial: $("#gerencial").value,
-        fecha: $("#fecha").value,
-        hora: $("#hora").value,
-      },
-      filas: this.collectData(),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    UI.toast("Datos guardados en el dispositivo.", "ok");
-  },
-
-  migrateData(data) {
-    if (!data.version) {
-      data.version = 1;
-      data.meta = data.meta || {};
-      data.filas = (data.filas || []).map((r) => ({
-        nombre: r.nombre,
-        PM: r.PM, V: r.V, E: r.E,
-        H: r.H, S: r.S, D: r.D,
-        prepFecha: r.prepFecha, prepHora: r.prepHora,
-      }));
-    }
-    return data;
-  },
-
-  loadLocal() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      UI.toast("No hay datos guardados.", "warn");
-      return;
-    }
-    let data = JSON.parse(raw);
-    if (data.version !== APP_VERSION) {
-      data = this.migrateData(data);
-    }
-    $("#gerencial").value = data.meta.gerencial || "";
-    $("#fecha").value = data.meta.fecha || "";
-    $("#hora").value = data.meta.hora || "";
-    const handleInputChange = (tr) => {
-      this.calcRow(tr);
-      this.refreshKPIs();
-    };
-    UI.renderTable(data.filas, handleInputChange);
-    this.refreshKPIs();
-    UI.toast("Datos cargados.", "ok");
-  },
-
-  NOTIFY_ENABLED: false,
-  notifiedSet: new Set(),
-
-  async ensureNotificationPermission() {
-    if (!("Notification" in window)) return false;
-    if (Notification.permission === "granted") return true;
-    if (Notification.permission === "denied") return false;
-    const p = await Notification.requestPermission();
-    return p === "granted";
-  },
-
-  notifyExpired(nombre) {
-    if (!this.NOTIFY_ENABLED) return;
-    try {
-      new Notification("Postre vencido", {
-        body: `${nombre} ha expirado. Retirar de venta.`,
-        icon: "icon-192.png",
-      });
-      if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-    } catch {}
-  },
-
-  scanExpirados() {
-    $$("#tblPostres tbody tr").forEach((tr) => {
-      const nombre = tr.querySelector("td").textContent.trim();
-      const status = $(".vig-status", tr)?.textContent?.toLowerCase() || "";
-      const key = nombre + "|expired";
-      if (status.includes("expirado")) {
-        if (!this.notifiedSet.has(key)) {
-          this.notifiedSet.add(key);
-          this.notifyExpired(nombre);
-          UI.toast(`Vencido: ${nombre}`, "err");
-        }
-      } else {
-        this.notifiedSet.delete(key);
-      }
-    });
-  },
-
-  wireNotifications() {
-    $("#btnNotify").addEventListener("click", async () => {
-      const ok = await this.ensureNotificationPermission();
-      this.NOTIFY_ENABLED = ok;
-      UI.toast(ok ? "Alertas activadas." : "Permiso denegado para notificaciones.", ok ? "ok" : "warn");
-    });
-    setInterval(() => {
-      $$("#tblPostres tbody tr").forEach((tr) => this.calcRow(tr));
-      this.refreshKPIs();
-      this.scanExpirados();
-    }, 60 * 1000);
-  },
-
-  clearAll() {
-    $("#gerencial").value = "";
-    $("#fecha").value = "";
-    $("#hora").value = "";
-    const initialData = POSTRES.map(n => ({ nombre: n }));
-    const handleInputChange = (tr) => {
-        this.calcRow(tr);
-        this.refreshKPIs();
-    };
-    UI.renderTable(initialData, handleInputChange);
-    this.refreshKPIs();
-    UI.toast("Tabla reiniciada.", "warn");
-  },
+// ── App state ────────────────────────────────────────────
+const State = {
+  view:         "login",   // "login" | "dashboard" | "users" | "record"
+  selectedDate: todayStr(),
+  editTarget:   null,      // { userId, date } when editing a record
 };
 
-App.init();
+// ── Bootstrap ─────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  initAuth(onUserReady, onLoggedOut);
+
+  // Login form
+  document.getElementById("form-login").addEventListener("submit", async e => {
+    e.preventDefault();
+    const errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+    const email    = document.getElementById("input-email").value.trim();
+    const password = document.getElementById("input-password").value;
+    const btn      = document.getElementById("btn-login");
+    btn.disabled   = true;
+    btn.textContent = "Entrando…";
+    try {
+      await login(email, password);
+      // onUserReady fires automatically via onAuthStateChanged
+    } catch (err) {
+      errEl.textContent = _friendlyAuthError(err.code);
+      btn.disabled  = false;
+      btn.textContent = "Iniciar sesión";
+    }
+  });
+
+  // Logout button
+  document.getElementById("btn-logout").addEventListener("click", async () => {
+    await logout();
+  });
+});
+
+// ── Auth callbacks ─────────────────────────────────────────
+function onUserReady(user) {
+  setView("dashboard");
+  navigate("dashboard");
+}
+
+function onLoggedOut() {
+  setView("login");
+  document.getElementById("main-content").innerHTML = "";
+  document.getElementById("main-nav").innerHTML = "";
+  document.getElementById("user-info").innerHTML = "";
+  // Reset login form
+  const form = document.getElementById("form-login");
+  if (form) form.reset();
+  const btn = document.getElementById("btn-login");
+  if (btn) { btn.disabled = false; btn.textContent = "Iniciar sesión"; }
+}
+
+// ── View switching ─────────────────────────────────────────
+function setView(view) {
+  State.view = view;
+  document.body.dataset.view = view === "login" ? "login" : "dashboard";
+}
+
+// ── Router ─────────────────────────────────────────────────
+async function navigate(view, params = {}) {
+  // Get current user from module (re-read each time since auth.js exports a let)
+  const user = _currentUser();
+  if (!user) return;
+
+  setView(view);
+
+  // Always re-render the header so nav pills reflect active view
+  renderHeader(user, view, navigate);
+
+  if (view === "dashboard") {
+    await loadDashboard(user);
+  } else if (view === "users") {
+    await loadUsers(user);
+  } else if (view === "record") {
+    await loadRecordForm(user, params.userId, params.date);
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+async function loadDashboard(user) {
+  showLoader();
+  try {
+    if (user.role === "director" || user.role === "gerente") {
+      const [users, recordsMap] = await Promise.all([
+        listUsers(),
+        listRecordsForDate(State.selectedDate),
+      ]);
+      renderTeamDashboard(
+        users,
+        recordsMap,
+        State.selectedDate,
+        (userId, date) => navigate("record", { userId, date }),
+        (newDate) => {
+          State.selectedDate = newDate;
+          loadDashboard(user);
+        }
+      );
+    } else {
+      // AGA / ADA — personal view
+      const today = todayStr();
+      const [todayRecord, history] = await Promise.all([
+        getRecord(user.uid, today),
+        listRecentRecords(user.uid, 7),
+      ]);
+      renderMyDashboard(
+        user,
+        todayRecord,
+        history,
+        (userId, date) => navigate("record", { userId, date })
+      );
+    }
+  } catch (err) {
+    console.error(err);
+    toast("Error cargando datos: " + err.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// ── Users ──────────────────────────────────────────────────
+async function loadUsers(user) {
+  if (user.role !== "director" && user.role !== "gerente") {
+    navigate("dashboard");
+    return;
+  }
+  showLoader();
+  try {
+    const [users, gerentes] = await Promise.all([
+      listUsers(),
+      user.role === "director" ? listGerentes() : Promise.resolve([]),
+    ]);
+    renderUsersPanel(
+      users,
+      user,
+      gerentes,
+      onAddUser,
+      onDeleteUser
+    );
+  } catch (err) {
+    console.error(err);
+    toast("Error cargando usuarios: " + err.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// ── Record Form ────────────────────────────────────────────
+async function loadRecordForm(currentUserObj, userId, date) {
+  showLoader();
+  try {
+    // Determine whose record we're editing
+    // AGA/ADA can only edit their own
+    const targetUid = (currentUserObj.role === "aga" || currentUserObj.role === "ada")
+      ? currentUserObj.uid
+      : (userId || currentUserObj.uid);
+
+    // Fetch the target user's profile for display name
+    const allUsers  = await listUsers();
+    const targetUser = allUsers.find(u => u.uid === targetUid) || currentUserObj;
+
+    const existing = await getRecord(targetUid, date);
+
+    renderRecordForm(
+      targetUser,
+      date,
+      existing,
+      async (formData) => {
+        showLoader();
+        try {
+          await saveRecord(targetUid, formData.date, formData);
+          toast("Registro guardado", "ok");
+          // If date changed, update selectedDate
+          State.selectedDate = formData.date;
+          navigate("dashboard");
+        } catch (err) {
+          console.error(err);
+          toast("Error guardando: " + err.message, "error");
+        } finally {
+          hideLoader();
+        }
+      },
+      () => navigate("dashboard")
+    );
+  } catch (err) {
+    console.error(err);
+    toast("Error cargando registro: " + err.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// ── User management handlers ───────────────────────────────
+async function onAddUser(data) {
+  showLoader();
+  try {
+    await createUser(data.email, data.password, {
+      name:      data.name,
+      role:      data.role,
+      gerenteId: data.gerenteId || null,
+    });
+    toast(`Usuario ${data.name} creado`, "ok");
+    // Reload users panel
+    const user = _currentUser();
+    await loadUsers(user);
+  } catch (err) {
+    console.error(err);
+    toast("Error creando usuario: " + err.message, "error");
+    throw err; // re-throw so the form can display it inline
+  } finally {
+    hideLoader();
+  }
+}
+
+async function onDeleteUser(uid) {
+  showLoader();
+  try {
+    await deleteUserProfile(uid);
+    toast("Usuario eliminado", "ok");
+    const user = _currentUser();
+    await loadUsers(user);
+  } catch (err) {
+    console.error(err);
+    toast("Error eliminando usuario: " + err.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+
+/**
+ * Re-read currentUser from auth.js each time.
+ * (The exported `let` updates in place when auth state changes.)
+ */
+function _currentUser() {
+  // auth.js exports `currentUser` as a named export (let).
+  // We imported it as `getUser` alias — but since ES modules are live bindings,
+  // we can just re-import. However, since we imported it at the top as a
+  // snapshot, we re-export via a getter in auth.js.
+  // Simplest workaround: expose via window during dev, or use the import alias.
+  // `getUser` is the live binding from `import { currentUser as getUser }`.
+  return getUser;
+}
+
+function _friendlyAuthError(code) {
+  const map = {
+    "auth/invalid-email":        "El correo electrónico no es válido.",
+    "auth/user-not-found":       "No existe un usuario con ese correo.",
+    "auth/wrong-password":       "Contraseña incorrecta.",
+    "auth/invalid-credential":   "Correo o contraseña incorrectos.",
+    "auth/too-many-requests":    "Demasiados intentos. Espera un momento.",
+    "auth/network-request-failed": "Error de conexión. Verifica tu internet.",
+  };
+  return map[code] || "Error al iniciar sesión. Intenta de nuevo.";
+}
